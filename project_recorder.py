@@ -6,7 +6,7 @@ from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 from openpyxl.drawing.image import Image as XLImage
 
 # --- 1. 頁面配置 ---
-st.set_page_config(page_title="營造標案履歷系統 v9.4", layout="wide", page_icon="🏗️")
+st.set_page_config(page_title="營造標案履歷系統 v9.5", layout="wide", page_icon="🏗️")
 
 # --- 2. CSS 樣式 ---
 st.markdown("""
@@ -20,6 +20,8 @@ st.markdown("""
         box-shadow: 0 4px 6px rgba(0,0,0,0.1);
     }
     div[data-testid="stExpander"] { background-color: white; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+    /* 調整 input label 的間距，讓橫排看起來更整齊 */
+    div[data-testid="stHorizontalBlock"] { align-items: end; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -47,8 +49,8 @@ def get_index(options, key):
 
 # --- 4. 介面設計 ---
 
-st.title("🏗️ 營造標案履歷系統 v9.4")
-st.caption("更新內容：優化建築規模版面排列 (樓層 -> 高度 -> 面積)")
+st.title("🏗️ 營造標案履歷系統 v9.5")
+st.caption("更新內容：建築規模區塊改為「橫向排列」，並依序對應 (地下 -> 地上 -> 屋突)")
 st.markdown("---")
 
 tab1, tab2, tab3 = st.tabs(["📝 基本資料與規格", "🖼️ 圖片與敘述", "📊 導出 Excel"])
@@ -73,6 +75,8 @@ with tab1:
         st.text_input("工程造價 (億元)", key="contract_cost", placeholder="例：15.5")
 
     st.subheader("2. 建築規模")
+    
+    # 第一列：建物類型與結構 (維持不變)
     col_b1, col_b2, col_b3, col_b4 = st.columns(4)
     with col_b1:
         opts_type = ["請選擇...", "住宅大樓", "集合住宅", "商辦大樓", "飯店", "百貨", "商場", "廠房", "公共工程"]
@@ -86,31 +90,41 @@ with tab1:
     with col_b4:
         st.text_input("鋼構轉換層", key="transfer_slab", placeholder="例：無 / 4F轉換桁架")
 
-    # --- 版面調整區 ---
-    col_d1, col_d2, col_d3 = st.columns(3)
+    st.markdown("---")
     
-    with col_d1:
-        st.markdown("**樓層規劃**")
-        # 順序：地下 -> 地上 -> 屋突
+    # 第二列：樓層規劃 (橫向：地下 -> 地上 -> 屋突)
+    st.markdown("##### 📍 樓層規劃")
+    f_c1, f_c2, f_c3 = st.columns(3)
+    with f_c1:
         st.number_input("地下層數 (B)", min_value=0, key="floors_down")
+    with f_c2:
         st.number_input("地上層數 (F)", min_value=0, key="floors_up")
+    with f_c3:
         st.number_input("屋突層數 (R)", min_value=0, key="floors_roof")
-        
-    with col_d2:
-        st.markdown("**高度與深度**")
-        # 順序對應樓層：地下深 -> 地上高 -> 屋突高
+
+    # 第三列：高度與深度 (橫向：地下深 -> 建物高 -> 屋突高 -> 開挖深)
+    st.markdown("##### 📏 高度與深度 (對應上方順序)")
+    h_c1, h_c2, h_c3, h_c4 = st.columns(4)
+    with h_c1:
         st.number_input("地下室深度 (m)", key="basement_depth", help="地下室底板深度")
+    with h_c2:
         st.number_input("建築高度 (m)", key="building_height", help="建物全高")
+    with h_c3:
         st.number_input("屋突高度 (m)", key="roof_height")
-        # 最後放開挖深度
+    with h_c4:
         st.number_input("開挖深度 (m)", key="excavation_depth", help="實際開挖面深度 (GL-)")
 
-    with col_d3:
-        st.markdown("**面積與基礎**")
+    # 第四列：面積與基礎 (橫向)
+    st.markdown("##### 📐 面積與基礎")
+    a_c1, a_c2, a_c3, a_c4 = st.columns(4)
+    with a_c1:
         st.number_input("基地面積 (m²)", key="site_area")
+    with a_c2:
         st.number_input("總樓地板面積 (m²)", key="total_floor_area")
+    with a_c3:
         opts_found = ["請選擇...", "筏式基礎", "筏式基礎+基樁", "獨立基腳"]
         st.selectbox("基礎型式", opts_found, index=get_index(opts_found, "foundation_type"), key="foundation_type")
+    with a_c4:
         st.number_input("筏基深度 (m)", key="raft_depth", help="筏基版底深度")
 
     st.subheader("3. 關鍵工法")
