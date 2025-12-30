@@ -2,20 +2,19 @@ import streamlit as st
 import pandas as pd
 import os
 from datetime import datetime
-from PIL import Image
+from io import BytesIO
 
 # --- 設定頁面資訊 ---
 st.set_page_config(
-    page_title="營造專案詳細管理系統 v2.0", 
+    page_title="營造專案詳細管理系統 v3.0", 
     layout="wide",
     page_icon="🏗️"
 )
 
 # 資料庫與圖片設定
-DB_FILE = "construction_project_db_v2.csv"
+DB_FILE = "construction_project_db_v3.csv"
 IMG_DIR = "project_images"
 
-# 確保圖片資料夾存在
 if not os.path.exists(IMG_DIR):
     os.makedirs(IMG_DIR)
 
@@ -26,34 +25,40 @@ def load_data():
     if os.path.exists(DB_FILE):
         return pd.read_csv(DB_FILE)
     else:
-        # 定義所有欄位
+        # 定義所有詳細欄位
         columns = [
             "登錄時間", "標案名稱", "文件編號版本", "業主", "建築事務所", 
             "人力配置", "拆除計畫簡述",
-            "結構型式", "樓層規劃", "樓層高度",
-            "開挖深度", "開挖工法", "支撐層數", "連續壁規格", "基樁規格", "取土口數量",
-            "塔吊規格", "施工電梯(品牌/大小)", "施工大門(大小/數量)",
+            # 面積相關
+            "基地面積(m2)", "建築面積(m2)", "總樓地板面積(m2)",
+            # 樓層層數
+            "地下室層數", "地上樓層數", "屋突層數",
+            # 樓層高度
+            "地下室高度總和(m)", "地上樓層高度總和(m)", "屋突高度總和(m)",
+            # 結構與基礎
+            "結構型式", "外牆型式", "筏基深度(m)", "筏基版厚(cm)",
+            # 大地工程
+            "開挖深度", "開挖工法", "支撐層數", "取土口數量",
+            "連續壁規格(彙整)", "基樁規格",
+            # 假設工程
+            "塔吊規格", "施工電梯", "施工大門",
             "進度表圖檔", "備註"
         ]
         return pd.DataFrame(columns=columns)
 
 def save_entry(data_dict, uploaded_file):
     """儲存資料與圖片"""
-    # 處理圖片儲存
     img_filename = ""
     if uploaded_file is not None:
-        # 為了避免檔名重複，加上時間戳記
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         img_filename = f"{timestamp}_{uploaded_file.name}"
         save_path = os.path.join(IMG_DIR, img_filename)
-        
         with open(save_path, "wb") as f:
             f.write(uploaded_file.getbuffer())
         data_dict["進度表圖檔"] = img_filename
     else:
         data_dict["進度表圖檔"] = "無"
 
-    # 儲存 CSV
     df = load_data()
     new_entry = pd.DataFrame([data_dict])
     updated_df = pd.concat([df, new_entry], ignore_index=True)
@@ -61,187 +66,185 @@ def save_entry(data_dict, uploaded_file):
     return updated_df
 
 def convert_df_to_excel(df):
-    """
-    將 DataFrame 轉為設計過的 Excel (使用 XlsxWriter 引擎)
-    """
-    # 輸出到記憶體中的 BytesIO 物件，而非實體檔案，方便 Streamlit 下載
-    from io import BytesIO
+    """將 DataFrame 轉為精美排版的 Excel"""
     output = BytesIO()
-    
-    # 使用 ExcelWriter 進行格式化
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
         df.to_excel(writer, index=False, sheet_name='專案總表')
-        
         workbook = writer.book
         worksheet = writer.sheets['專案總表']
         
-        # 定義格式
+        # 格式設定
         header_format = workbook.add_format({
-            'bold': True,
-            'text_wrap': True,
-            'valign': 'top',
-            'fg_color': '#D7E4BC', # 淺綠色背景
-            'border': 1
+            'bold': True, 'text_wrap': True, 'valign': 'vcenter', 'align': 'center',
+            'fg_color': '#4F81BD', 'font_color': 'white', 'border': 1
         })
-        
         cell_format = workbook.add_format({
-            'text_wrap': True,
-            'valign': 'top',
-            'border': 1
+            'text_wrap': True, 'valign': 'top', 'border': 1
         })
         
-        # 套用格式到標題列
+        # 套用格式
         for col_num, value in enumerate(df.columns.values):
             worksheet.write(0, col_num, value, header_format)
-            
-        # 設定欄寬 (根據內容長度稍微調整，或設固定寬度)
-        worksheet.set_column('A:A', 20) # 時間
-        worksheet.set_column('B:B', 30) # 標案名稱 (寬一點)
-        worksheet.set_column('C:G', 15) # 一般欄位
-        worksheet.set_column('H:Z', 20) # 後面技術欄位
-        worksheet.set_column('U:U', 40) # 備註 (最寬)
+            # 設定預設欄寬
+            worksheet.set_column(col_num, col_num, 15, cell_format)
+
+        # 特別調整特定欄位寬度
+        worksheet.set_column('B:B', 25) # 標案名稱
+        worksheet.set_column('Y:Y', 35) # 連續壁規格 (因為內容多，設寬一點)
+        worksheet.set_column('AE:AE', 40) # 備註
 
     return output.getvalue()
 
 # --- 介面設計 ---
 
-st.title("🏗️ 營造專案詳細管理系統 v2.0")
-st.caption("新增欄位：文件版次、人力、塔吊電梯、拆除計畫、進度表圖面")
-st.markdown("---")
+st.title("🏗️ 營造專案詳細管理系統 v3.0")
+st.markdown("針對工期計算與詳細規格設計的進階版本")
 
 tab1, tab2 = st.tabs(["📝 新增詳細資料", "📂 檢視與匯出報表"])
 
 with tab1:
-    with st.form("full_spec_form", clear_on_submit=True):
+    with st.form("full_spec_form_v3", clear_on_submit=True):
         
-        # 區塊 1: 專案管理基礎
-        st.subheader("1. 專案管理基礎資訊")
-        col1, col2, col3, col4 = st.columns(4)
-        with col1:
-            name = st.text_input("標案名稱", placeholder="必填")
-        with col2:
-            doc_ver = st.text_input("文件編號/版本", placeholder="例：P-2023-001 v1.0")
-        with col3:
-            manpower = st.text_input("人力配置", placeholder="例：主任1/工務2/職安1")
-        with col4:
-            owner = st.text_input("業主", placeholder="建設公司/機關")
+        st.markdown("### 1. 專案基本與面積")
+        c1, c2, c3, c4 = st.columns(4)
+        with c1: name = st.text_input("標案名稱", placeholder="必填")
+        with c2: doc_ver = st.text_input("文件編號/版本")
+        with c3: owner = st.text_input("業主")
+        with c4: architect = st.text_input("建築事務所")
 
-        # 區塊 2: 建築與拆除
-        st.markdown("---")
-        st.subheader("2. 建築結構與拆除計畫")
-        col_b1, col_b2, col_b3 = st.columns(3)
-        with col_b1:
-            struct_type = st.text_input("結構型式", placeholder="例：SRC造")
-            demo_plan = st.text_area("拆除計畫相關", placeholder="例：舊有3層透天拆除，需鄰房保護", height=100)
-        with col_b2:
-            floors = st.text_input("樓層規劃", placeholder="例：B5 / 24F")
-        with col_b3:
-            floor_height = st.text_input("樓層高度", placeholder="例：1F 6m / 標準 3.4m")
+        c_area1, c_area2, c_area3 = st.columns(3)
+        with c_area1: area_base = st.text_input("基地面積 (m²)")
+        with c_area2: area_build = st.text_input("建築面積 (m²)")
+        with c_area3: area_total = st.text_input("總樓地板面積 (m²)")
 
-        # 區塊 3: 大地工程 (開挖/支撐/取土)
         st.markdown("---")
-        st.subheader("3. 大地工程細節")
-        col_g1, col_g2, col_g3 = st.columns(3)
-        with col_g1:
-            excav_depth = st.text_input("開挖深度", placeholder="例：21.5 m")
-            excav_method = st.text_input("開挖工法", placeholder="例：逆打 / 順打")
-            soil_opening = st.text_input("取土口數量", placeholder="例：2處 (A區/B區)")
-        with col_g2:
-            wall_spec = st.text_input("連續壁規格", placeholder="例：100cm / 45m")
-            strut_level = st.text_input("支撐層數", placeholder="例：5層 (H350x350)")
-        with col_g3:
-            pile_spec = st.text_input("基樁規格", placeholder="例：反循環 D200 L50m")
+        st.markdown("### 2. 樓層與高度規劃")
+        st.caption("請分別輸入層數與高度數據")
+        
+        col_f1, col_f2, col_f3 = st.columns(3)
+        with col_f1: 
+            st.markdown("**地下室 (Basement)**")
+            f_b_count = st.text_input("地下室層數", placeholder="例：B5")
+            f_b_height = st.text_input("地下室高度總和 (m)")
+        with col_f2:
+            st.markdown("**地上層 (Floor)**")
+            f_f_count = st.text_input("地上樓層數", placeholder="例：24F")
+            f_f_height = st.text_input("地上高度總和 (m)")
+        with col_f3:
+            st.markdown("**屋突 (Roof)**")
+            f_r_count = st.text_input("屋突層數", placeholder="例：R3")
+            f_r_height = st.text_input("屋突高度總和 (m)")
 
-        # 區塊 4: 假設工程 (塔吊/電梯/大門)
         st.markdown("---")
-        st.subheader("4. 假設工程配置")
+        st.markdown("### 3. 結構與基礎")
+        col_st1, col_st2, col_st3, col_st4 = st.columns(4)
+        with col_st1: struct_type = st.text_input("結構型式", placeholder="SRC/RC/SC")
+        with col_st2: wall_type = st.text_input("外牆型式", placeholder="石材/帷幕/二丁掛")
+        with col_st3: raft_depth = st.text_input("筏基深度 (m)")
+        with col_st4: raft_thick = st.text_input("筏基版厚 (cm)")
+
+        st.markdown("---")
+        st.markdown("### 4. 大地工程 (連續壁可多行輸入)")
+        
+        # 特別設計：連續壁多行輸入區
+        dw_specs = st.text_area("連續壁規格 (請換行輸入不同單元)", 
+                                height=100,
+                                placeholder="例：\n第一單元厚100cm 深45m\n扶壁厚80cm 深30m")
+        
+        col_geo1, col_geo2, col_geo3, col_geo4 = st.columns(4)
+        with col_geo1: excav_depth = st.text_input("開挖深度 (m)")
+        with col_geo2: excav_method = st.text_input("開挖工法", placeholder="順打/逆打")
+        with col_geo3: strut_level = st.text_input("支撐層數")
+        with col_geo4: soil_opening = st.text_input("取土口數量")
+        
+        pile_spec = st.text_input("基樁規格", placeholder="說明樁徑與長度")
+
+        st.markdown("---")
+        st.markdown("### 5. 假設工程與其他")
         col_eq1, col_eq2, col_eq3 = st.columns(3)
-        with col_eq1:
-            tower_crane = st.text_input("塔吊規格", placeholder="例：Jaso J300 (45m臂長)")
-        with col_eq2:
-            elevator = st.text_input("施工電梯品牌/大小", placeholder="例：GEDA 載重2頓 雙籠")
-        with col_eq3:
-            gate = st.text_input("施工大門大小/數量", placeholder="例：8m寬 x 2處 (大安路/巷口)")
+        with col_eq1: tower_crane = st.text_input("塔吊規格")
+        with col_eq2: elevator = st.text_input("施工電梯 (品牌/大小)")
+        with col_eq3: gate = st.text_input("施工大門 (大小/數量)")
+        
+        c_ot1, c_ot2 = st.columns(2)
+        with c_ot1: manpower = st.text_input("人力配置")
+        with c_ot2: demo_plan = st.text_input("拆除計畫相關")
 
-        # 區塊 5: 附件與備註
         st.markdown("---")
-        col_final1, col_final2 = st.columns([1, 2])
-        with col_final1:
-            st.markdown("**上傳進度表圖面**")
-            uploaded_img = st.file_uploader("選擇圖片 (jpg/png)", type=['png', 'jpg', 'jpeg'])
-        with col_final2:
-            note = st.text_area("備註", placeholder="其他補充事項...")
+        col_img, col_note = st.columns([1, 2])
+        with col_img: uploaded_img = st.file_uploader("上傳進度表/配置圖", type=['png', 'jpg', 'jpeg'])
+        with col_note: note = st.text_area("備註事項")
 
-        submitted = st.form_submit_button("💾 儲存完整專案資料")
+        submitted = st.form_submit_button("💾 儲存專案資料 v3")
 
         if submitted:
             if name:
-                entry_data = {
+                entry = {
                     "登錄時間": datetime.now().strftime("%Y-%m-%d %H:%M"),
                     "標案名稱": name,
                     "文件編號版本": doc_ver,
                     "業主": owner,
-                    "建築事務所": "", # 這裡可以視需求加回輸入框
-                    "人力配置": manpower,
-                    "拆除計畫簡述": demo_plan,
+                    "建築事務所": architect,
+                    "基地面積(m2)": area_base,
+                    "建築面積(m2)": area_build,
+                    "總樓地板面積(m2)": area_total,
+                    "地下室層數": f_b_count,
+                    "地上樓層數": f_f_count,
+                    "屋突層數": f_r_count,
+                    "地下室高度總和(m)": f_b_height,
+                    "地上樓層高度總和(m)": f_f_height,
+                    "屋突高度總和(m)": f_r_height,
                     "結構型式": struct_type,
-                    "樓層規劃": floors,
-                    "樓層高度": floor_height,
+                    "外牆型式": wall_type,
+                    "筏基深度(m)": raft_depth,
+                    "筏基版厚(cm)": raft_thick,
+                    "連續壁規格(彙整)": dw_specs, # 這裡存入多行文字
                     "開挖深度": excav_depth,
                     "開挖工法": excav_method,
                     "支撐層數": strut_level,
-                    "連續壁規格": wall_spec,
-                    "基樁規格": pile_spec,
                     "取土口數量": soil_opening,
+                    "基樁規格": pile_spec,
                     "塔吊規格": tower_crane,
-                    "施工電梯(品牌/大小)": elevator,
-                    "施工大門(大小/數量)": gate,
+                    "施工電梯": elevator,
+                    "施工大門": gate,
+                    "人力配置": manpower,
+                    "拆除計畫相關": demo_plan,
                     "備註": note
                 }
-                save_entry(entry_data, uploaded_img)
-                st.success(f"已成功建立專案：{name}")
+                save_entry(entry, uploaded_img)
+                st.success(f"資料已儲存！專案：{name}")
             else:
-                st.error("請輸入標案名稱！")
+                st.error("請輸入標案名稱")
 
 with tab2:
-    st.subheader("📊 專案資料列表")
+    st.subheader("📊 專案總表")
     df = load_data()
     
     if not df.empty:
-        # 1. 顯示 DataFrame
-        st.dataframe(df, use_container_width=True, hide_index=True)
+        # 顯示表格
+        st.dataframe(df, use_container_width=True)
         
-        # 2. 圖片預覽功能
-        st.markdown("### 🖼️ 進度表預覽")
-        selected_project = st.selectbox("選擇要查看圖面的專案", df["標案名稱"].unique())
-        
-        if selected_project:
-            # 找到該專案的圖片檔名
-            project_row = df[df["標案名稱"] == selected_project].iloc[0]
-            img_name = project_row["進度表圖檔"]
-            
-            if img_name != "無" and pd.notna(img_name):
-                img_path = os.path.join(IMG_DIR, img_name)
-                if os.path.exists(img_path):
-                    image = Image.open(img_path)
-                    st.image(image, caption=f"{selected_project} - 進度表", width=600)
-                else:
-                    st.warning("⚠️ 找不到圖檔 (可能已被刪除)")
-            else:
-                st.info("此專案未上傳進度表圖片")
-
-        st.markdown("---")
-        
-        # 3. 匯出 Excel
+        # 產生 Excel 下載按鈕
+        st.markdown("### 📥 報表輸出")
         excel_data = convert_df_to_excel(df)
         
         st.download_button(
-            label="📥 下載 Excel 報表 (設計版)",
+            label="下載 Excel 報表 (包含所有欄位)",
             data=excel_data,
-            file_name='construction_projects_full.xlsx',
+            file_name='Project_Report_v3.xlsx',
             mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         )
-        st.caption("說明：匯出的 Excel 已包含格式排版。圖片檔案較大，不直接嵌入 Excel，請對照上方的「進度表圖檔」檔名至 images 資料夾查看。")
         
+        # 圖片檢視區 (保持不變)
+        st.markdown("---")
+        st.subheader("🖼️ 圖面檢視")
+        sel_proj = st.selectbox("選擇專案", df["標案名稱"].unique())
+        if sel_proj:
+            row = df[df["標案名稱"] == sel_proj].iloc[0]
+            if row["進度表圖檔"] != "無":
+                img_p = os.path.join(IMG_DIR, row["進度表圖檔"])
+                if os.path.exists(img_p):
+                    from PIL import Image
+                    st.image(Image.open(img_p), caption=f"{sel_proj} 圖面", width=700)
     else:
-        st.info("目前無資料，請至「新增詳細資料」分頁建立。")
+        st.info("目前無資料，請先新增一筆資料後，Excel 下載按鈕才會出現。")
