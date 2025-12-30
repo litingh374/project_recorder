@@ -6,7 +6,7 @@ from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 from openpyxl.drawing.image import Image as XLImage
 
 # --- 1. 頁面配置 ---
-st.set_page_config(page_title="營造標案履歷系統 v9.0", layout="wide", page_icon="🏗️")
+st.set_page_config(page_title="營造標案履歷系統 v9.1", layout="wide", page_icon="🏗️")
 
 # --- 2. CSS 樣式 ---
 st.markdown("""
@@ -23,21 +23,21 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 3. 初始化 Session State (設定為空白預設值) ---
+# --- 3. 初始化 Session State ---
 default_values = {
     "project_name": "", "project_loc": "", "client_name": "", "architect_name": "",
-    "contract_date": "", "contract_cost": "", "floors_up": 0, "floors_down": 0,
+    "bid_year": "", "contract_date": "", "contract_cost": "",  # 新增 bid_year
+    "floors_up": 0, "floors_down": 0,
     "site_area": 0.0, "total_floor_area": 0.0, "building_height": 0.0, "excavation_depth": 0.0,
     "const_method": "請選擇...", "struct_above": "請選擇...", "struct_below": "請選擇...",
     "foundation_type": "請選擇...", "b_type": "請選擇...", "retain_sys": "請選擇...", 
-    "wall_sys": "請選擇...", "gw_method": "請選擇..."  # 新增導溝欄位
+    "wall_sys": "請選擇...", "gw_method": "請選擇..."
 }
 
 for key, val in default_values.items():
     if key not in st.session_state:
         st.session_state[key] = val
 
-# 輔助函式：處理下拉選單索引
 def get_index(options, key):
     current_val = st.session_state[key]
     if current_val in options: return options.index(current_val)
@@ -45,8 +45,8 @@ def get_index(options, key):
 
 # --- 4. 介面設計 ---
 
-st.title("🏗️ 營造標案履歷系統 v9.0")
-st.caption("穩定版：移除智慧匯入功能，新增導溝與明挖選項")
+st.title("🏗️ 營造標案履歷系統 v9.1")
+st.caption("更新內容：新增「投標年份」欄位")
 st.markdown("---")
 
 tab1, tab2, tab3 = st.tabs(["📝 基本資料與規格", "🖼️ 圖片與敘述", "📊 導出 Excel"])
@@ -61,13 +61,14 @@ with tab1:
         st.text_input("業主名稱", key="client_name", placeholder="例：XX建設股份有限公司")
         st.text_input("設計單位/建築師", key="architect_name", placeholder="例：OOO建築師事務所")
     with c3:
-        st.text_input("完工年份", key="contract_date", placeholder="例：2023.05 - 2025.12")
+        # 新增投標年份，並調整排版
+        st.text_input("投標年份", key="bid_year", placeholder="例：2023")
+        st.text_input("完工年份", key="contract_date", placeholder="例：2025.12")
         st.text_input("工程造價 (億元)", key="contract_cost", placeholder="例：15.5")
 
     st.subheader("2. 建築規模")
     col_b1, col_b2, col_b3, col_b4 = st.columns(4)
     with col_b1:
-        # 更新：新增百貨、賣場
         opts_type = ["請選擇...", "住宅大樓", "商辦大樓", "飯店", "百貨", "賣場", "廠房", "公共工程"]
         st.selectbox("建物類型", opts_type, index=get_index(opts_type, "b_type"), key="b_type")
     with col_b2:
@@ -97,23 +98,16 @@ with tab1:
         opts_method = ["請選擇...", "逆打工法 (Top-Down)", "順打工法 (Bottom-Up)", "雙順打工法"]
         st.selectbox("主體施工工法", opts_method, index=get_index(opts_method, "const_method"), key="const_method")
     with c_m2:
-        # 更新：新增明挖工法
         opts_retain = ["請選擇...", "連續壁+鋼支柱(逆打)", "連續壁+內支撐", "地錨工法", "鋼板樁", "明挖工法"]
         st.selectbox("擋土支撐系統", opts_retain, index=get_index(opts_retain, "retain_sys"), key="retain_sys")
     with c_m3:
         opts_wall = ["請選擇...", "玻璃帷幕", "石材吊掛", "鋁板", "二丁掛"]
         st.selectbox("外牆工法", opts_wall, index=get_index(opts_wall, "wall_sys"), key="wall_sys")
 
-    # 新增欄位區：導溝施作
     c_gw1, c_gw2, c_gw3 = st.columns(3)
     with c_gw1:
-        # 更新：新增導溝施作方式
         opts_gw = ["請選擇...", "一般導溝", "全套管", "深導溝"]
-        st.selectbox("導溝施作方式", opts_gw, index=get_index(opts_gw, "gw_method"), key="gw_method", help="擋土壁前置作業方式")
-    with c_gw2:
-        st.write("") # 佔位用
-    with c_gw3:
-        st.write("") # 佔位用
+        st.selectbox("導溝施作方式", opts_gw, index=get_index(opts_gw, "gw_method"), key="gw_method")
 
 with tab2:
     st.header("工程特色與圖片")
@@ -136,7 +130,7 @@ with tab3:
         ws.title = "專案履歷表"
         p_name = st.session_state.project_name if st.session_state.project_name else "未命名專案"
         
-        # 樣式設定
+        # 樣式
         border_style = Side(border_style="thin", color="000000")
         full_border = Border(left=border_style, right=border_style, top=border_style, bottom=border_style)
         fill_header = PatternFill(start_color="2D2926", end_color="2D2926", fill_type="solid")
@@ -173,45 +167,61 @@ with tab3:
                 ws[f'{c}{r}'].alignment = Alignment(vertical='center', wrap_text=True)
 
         ss = st.session_state
-        write_row(2, "工程地點", ss.project_loc, "完工年份", ss.contract_date)
+        # 更新 Excel 欄位配置以放入投標年份
+        write_row(2, "工程地點", ss.project_loc, "投標年份", ss.bid_year)
         write_row(3, "業主單位", ss.client_name, "設計單位", ss.architect_name)
+        write_row(4, "完工年份", ss.contract_date, "建物用途", ss.b_type)
         cost_str = f"{ss.contract_cost} 億元" if ss.contract_cost else ""
-        write_row(4, "工程造價", cost_str, "建物用途", ss.b_type)
+        write_row(5, "工程造價", cost_str, "  ", "") # 空白格補位
 
-        ws.merge_cells('A5:D5'); ws['A5'] = "建築規模與技術規格"; ws['A5'].fill = fill_sub_header; ws['A5'].font = font_sub; ws['A5'].alignment = Alignment(horizontal='center'); ws['A5'].border = full_border
+        # 標題往下移一格 (因為上面多了一列)
+        start_row = 6
+        ws.merge_cells(f'A{start_row}:D{start_row}')
+        ws[f'A{start_row}'] = "建築規模與技術規格"
+        ws[f'A{start_row}'].fill = fill_sub_header
+        ws[f'A{start_row}'].font = font_sub
+        ws[f'A{start_row}'].alignment = Alignment(horizontal='center')
+        ws[f'A{start_row}'].border = full_border
 
         struct_str = f"地上:{ss.struct_above} / 地下:{ss.struct_below}"
         floor_str = f"{ss.floors_up}F / {ss.floors_down}B (高 {ss.building_height}m)"
         area_str = f"基地:{ss.site_area:,.0f} / 總樓:{ss.total_floor_area:,.0f} m²"
         excav_str = f"{ss.const_method} / GL-{ss.excavation_depth}m"
 
-        write_row(6, "樓層/高度", floor_str, "結構系統", struct_str)
-        write_row(7, "面積資訊", area_str, "基礎型式", ss.foundation_type)
-        # 更新：將導溝資訊加入 Excel (放在擋土系統旁)
+        r = start_row + 1
+        write_row(r, "樓層/高度", floor_str, "結構系統", struct_str)
+        write_row(r+1, "面積資訊", area_str, "基礎型式", ss.foundation_type)
+        
         retain_str = f"{ss.retain_sys}"
-        if ss.gw_method != "請選擇...":
-            retain_str += f" ({ss.gw_method})"
-            
-        write_row(8, "施工工法", excav_str, "擋土/導溝", retain_str)
-        write_row(9, "外牆系統", ss.wall_sys, "其他", "")
+        if ss.gw_method != "請選擇...": retain_str += f" ({ss.gw_method})"
+        write_row(r+2, "施工工法", excav_str, "擋土/導溝", retain_str)
+        write_row(r+3, "外牆系統", ss.wall_sys, "其他", "")
 
-        ws.merge_cells('A10:D10'); ws['A10'] = "工程特色"; ws['A10'].fill = fill_sub_header; ws['A10'].font = font_sub; ws['A10'].border = full_border
-        ws.merge_cells('A11:D11'); ws['A11'] = features if features else "(無)"; ws['A11'].alignment = Alignment(wrap_text=True, vertical='top'); ws['A11'].border = full_border; ws.row_dimensions[11].height = 60
-        ws.merge_cells('A12:D12'); ws['A12'] = "施工挑戰"; ws['A12'].fill = fill_sub_header; ws['A12'].font = font_sub; ws['A12'].border = full_border
-        ws.merge_cells('A13:D13'); ws['A13'] = challenges if challenges else "(無)"; ws['A13'].alignment = Alignment(wrap_text=True, vertical='top'); ws['A13'].border = full_border; ws.row_dimensions[13].height = 60
-        ws.merge_cells('A14:D14'); ws['A14'] = "專案照片"; ws['A14'].fill = fill_sub_header; ws['A14'].font = font_sub; ws['A14'].alignment = Alignment(horizontal='center'); ws['A14'].border = full_border
+        r_feat = r + 4
+        ws.merge_cells(f'A{r_feat}:D{r_feat}'); ws[f'A{r_feat}'] = "工程特色"; ws[f'A{r_feat}'].fill = fill_sub_header; ws[f'A{r_feat}'].font = font_sub; ws[f'A{r_feat}'].border = full_border
+        r_feat_content = r_feat + 1
+        ws.merge_cells(f'A{r_feat_content}:D{r_feat_content}'); ws[f'A{r_feat_content}'] = features if features else "(無)"; ws[f'A{r_feat_content}'].alignment = Alignment(wrap_text=True, vertical='top'); ws[f'A{r_feat_content}'].border = full_border; ws.row_dimensions[r_feat_content].height = 60
+        
+        r_chal = r_feat_content + 1
+        ws.merge_cells(f'A{r_chal}:D{r_chal}'); ws[f'A{r_chal}'] = "施工挑戰"; ws[f'A{r_chal}'].fill = fill_sub_header; ws[f'A{r_chal}'].font = font_sub; ws[f'A{r_chal}'].border = full_border
+        r_chal_content = r_chal + 1
+        ws.merge_cells(f'A{r_chal_content}:D{r_chal_content}'); ws[f'A{r_chal_content}'] = challenges if challenges else "(無)"; ws[f'A{r_chal_content}'].alignment = Alignment(wrap_text=True, vertical='top'); ws[f'A{r_chal_content}'].border = full_border; ws.row_dimensions[r_chal_content].height = 60
+        
+        r_img = r_chal_content + 1
+        ws.merge_cells(f'A{r_img}:D{r_img}'); ws[f'A{r_img}'] = "專案照片"; ws[f'A{r_img}'].fill = fill_sub_header; ws[f'A{r_img}'].font = font_sub; ws[f'A{r_img}'].alignment = Alignment(horizontal='center'); ws[f'A{r_img}'].border = full_border
 
+        r_img_content = r_img + 1
         if uploaded_img:
             img_io = io.BytesIO(uploaded_img.getvalue())
             img = XLImage(img_io)
             img.width = 400; img.height = 300
-            ws.add_image(img, 'A15')
-            ws.row_dimensions[15].height = 230
+            ws.add_image(img, f'A{r_img_content}')
+            ws.row_dimensions[r_img_content].height = 230
         else:
-            ws.merge_cells('A15:D15')
-            ws['A15'] = "(無照片)"
-            ws['A15'].alignment = Alignment(horizontal='center', vertical='center')
-            ws.row_dimensions[15].height = 50
+            ws.merge_cells(f'A{r_img_content}:D{r_img_content}')
+            ws[f'A{r_img_content}'] = "(無照片)"
+            ws[f'A{r_img_content}'].alignment = Alignment(horizontal='center', vertical='center')
+            ws.row_dimensions[r_img_content].height = 50
 
         out_buffer = io.BytesIO()
         wb.save(out_buffer)
