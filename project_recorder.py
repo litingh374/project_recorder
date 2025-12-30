@@ -6,7 +6,7 @@ from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 from openpyxl.drawing.image import Image as XLImage
 
 # --- 1. 頁面配置 ---
-st.set_page_config(page_title="營造標案履歷系統 v9.3", layout="wide", page_icon="🏗️")
+st.set_page_config(page_title="營造標案履歷系統 v9.4", layout="wide", page_icon="🏗️")
 
 # --- 2. CSS 樣式 ---
 st.markdown("""
@@ -27,10 +27,10 @@ st.markdown("""
 default_values = {
     "project_name": "", "project_loc": "", "client_name": "", "architect_name": "",
     "bid_year": "", "contract_date": "", "contract_cost": "", "duration_days": "",
-    "floors_up": 0, "floors_down": 0, "floors_roof": 0, # 新增屋突層數
+    "floors_up": 0, "floors_down": 0, "floors_roof": 0,
     "site_area": 0.0, "total_floor_area": 0.0, 
-    "building_height": 0.0, "roof_height": 0.0, # 新增屋突高度
-    "basement_depth": 0.0, "raft_depth": 0.0, "excavation_depth": 0.0, # 新增地下室深度、筏基深度
+    "building_height": 0.0, "roof_height": 0.0,
+    "basement_depth": 0.0, "raft_depth": 0.0, "excavation_depth": 0.0,
     "const_method": "請選擇...", "struct_above": "請選擇...", "struct_below": "請選擇...", "transfer_slab": "",
     "foundation_type": "請選擇...", "b_type": "請選擇...", "retain_sys": "請選擇...", 
     "wall_sys": "請選擇...", "gw_method": "請選擇..."
@@ -47,8 +47,8 @@ def get_index(options, key):
 
 # --- 4. 介面設計 ---
 
-st.title("🏗️ 營造標案履歷系統 v9.3")
-st.caption("更新內容：修正建物類型、新增屋突層數/高度、地下室與筏基深度")
+st.title("🏗️ 營造標案履歷系統 v9.4")
+st.caption("更新內容：優化建築規模版面排列 (樓層 -> 高度 -> 面積)")
 st.markdown("---")
 
 tab1, tab2, tab3 = st.tabs(["📝 基本資料與規格", "🖼️ 圖片與敘述", "📊 導出 Excel"])
@@ -75,7 +75,6 @@ with tab1:
     st.subheader("2. 建築規模")
     col_b1, col_b2, col_b3, col_b4 = st.columns(4)
     with col_b1:
-        # 修正：賣場改商場，新增集合住宅
         opts_type = ["請選擇...", "住宅大樓", "集合住宅", "商辦大樓", "飯店", "百貨", "商場", "廠房", "公共工程"]
         st.selectbox("建物類型", opts_type, index=get_index(opts_type, "b_type"), key="b_type")
     with col_b2:
@@ -87,32 +86,32 @@ with tab1:
     with col_b4:
         st.text_input("鋼構轉換層", key="transfer_slab", placeholder="例：無 / 4F轉換桁架")
 
-    # 調整佈局以容納更多高度/深度資訊
+    # --- 版面調整區 ---
     col_d1, col_d2, col_d3 = st.columns(3)
+    
     with col_d1:
         st.markdown("**樓層規劃**")
-        st.number_input("地上層數 (F)", min_value=0, key="floors_up")
+        # 順序：地下 -> 地上 -> 屋突
         st.number_input("地下層數 (B)", min_value=0, key="floors_down")
-        # 補回屋突層數
+        st.number_input("地上層數 (F)", min_value=0, key="floors_up")
         st.number_input("屋突層數 (R)", min_value=0, key="floors_roof")
         
     with col_d2:
+        st.markdown("**高度與深度**")
+        # 順序對應樓層：地下深 -> 地上高 -> 屋突高
+        st.number_input("地下室深度 (m)", key="basement_depth", help="地下室底板深度")
+        st.number_input("建築高度 (m)", key="building_height", help="建物全高")
+        st.number_input("屋突高度 (m)", key="roof_height")
+        # 最後放開挖深度
+        st.number_input("開挖深度 (m)", key="excavation_depth", help="實際開挖面深度 (GL-)")
+
+    with col_d3:
         st.markdown("**面積與基礎**")
         st.number_input("基地面積 (m²)", key="site_area")
         st.number_input("總樓地板面積 (m²)", key="total_floor_area")
         opts_found = ["請選擇...", "筏式基礎", "筏式基礎+基樁", "獨立基腳"]
         st.selectbox("基礎型式", opts_found, index=get_index(opts_found, "foundation_type"), key="foundation_type")
-        # 新增筏基深度
         st.number_input("筏基深度 (m)", key="raft_depth", help="筏基版底深度")
-
-    with col_d3:
-        st.markdown("**高度與深度**")
-        st.number_input("建築高度 (m)", key="building_height", help="建物全高")
-        # 新增屋突高度
-        st.number_input("屋突高度 (m)", key="roof_height")
-        # 新增地下室深度 (與開挖深度區隔)
-        st.number_input("地下室深度 (m)", key="basement_depth", help="地下室底板深度")
-        st.number_input("開挖深度 (m)", key="excavation_depth", help="實際開挖面深度 (GL-)")
 
     st.subheader("3. 關鍵工法")
     c_m1, c_m2, c_m3 = st.columns(3)
@@ -212,22 +211,18 @@ with tab3:
         if ss.transfer_slab:
             struct_str += f"\n(轉換層: {ss.transfer_slab})"
             
-        # 整合樓層資訊 (含屋突)
         floor_str = f"{ss.floors_up}F / {ss.floors_down}B"
         if ss.floors_roof > 0:
             floor_str += f" / {ss.floors_roof}R"
         
-        # 整合高度資訊 (建物+屋突)
         height_str = f"H={ss.building_height}m"
         if ss.roof_height > 0:
             height_str += f" (屋突{ss.roof_height}m)"
             
         floor_display = f"{floor_str}\n{height_str}"
 
-        # 整合面積與深度
         area_str = f"基地:{ss.site_area:,.0f} / 總樓:{ss.total_floor_area:,.0f} m²"
         
-        # 整合深度資訊 (地下室/筏基)
         depth_str = ""
         if ss.basement_depth > 0: depth_str += f"地下室深:{ss.basement_depth}m\n"
         if ss.raft_depth > 0: depth_str += f"筏基深:{ss.raft_depth}m"
