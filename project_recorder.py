@@ -6,7 +6,7 @@ from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 from openpyxl.drawing.image import Image as XLImage
 
 # --- 1. 頁面配置 ---
-st.set_page_config(page_title="營造標案履歷系統 v9.1", layout="wide", page_icon="🏗️")
+st.set_page_config(page_title="營造標案履歷系統 v9.2", layout="wide", page_icon="🏗️")
 
 # --- 2. CSS 樣式 ---
 st.markdown("""
@@ -26,10 +26,10 @@ st.markdown("""
 # --- 3. 初始化 Session State ---
 default_values = {
     "project_name": "", "project_loc": "", "client_name": "", "architect_name": "",
-    "bid_year": "", "contract_date": "", "contract_cost": "",  # 新增 bid_year
+    "bid_year": "", "contract_date": "", "contract_cost": "", "duration_days": "", # 新增 duration_days
     "floors_up": 0, "floors_down": 0,
     "site_area": 0.0, "total_floor_area": 0.0, "building_height": 0.0, "excavation_depth": 0.0,
-    "const_method": "請選擇...", "struct_above": "請選擇...", "struct_below": "請選擇...",
+    "const_method": "請選擇...", "struct_above": "請選擇...", "struct_below": "請選擇...", "transfer_slab": "", # 新增 transfer_slab
     "foundation_type": "請選擇...", "b_type": "請選擇...", "retain_sys": "請選擇...", 
     "wall_sys": "請選擇...", "gw_method": "請選擇..."
 }
@@ -45,8 +45,8 @@ def get_index(options, key):
 
 # --- 4. 介面設計 ---
 
-st.title("🏗️ 營造標案履歷系統 v9.1")
-st.caption("更新內容：新增「投標年份」欄位")
+st.title("🏗️ 營造標案履歷系統 v9.2")
+st.caption("更新內容：新增「鋼構轉換層」、「日曆天工期」")
 st.markdown("---")
 
 tab1, tab2, tab3 = st.tabs(["📝 基本資料與規格", "🖼️ 圖片與敘述", "📊 導出 Excel"])
@@ -61,9 +61,14 @@ with tab1:
         st.text_input("業主名稱", key="client_name", placeholder="例：XX建設股份有限公司")
         st.text_input("設計單位/建築師", key="architect_name", placeholder="例：OOO建築師事務所")
     with c3:
-        # 新增投標年份，並調整排版
         st.text_input("投標年份", key="bid_year", placeholder="例：2023")
-        st.text_input("完工年份", key="contract_date", placeholder="例：2025.12")
+        c3_1, c3_2 = st.columns(2)
+        with c3_1:
+            st.text_input("完工年份", key="contract_date", placeholder="例：2025.12")
+        with c3_2:
+            # 新增工期欄位
+            st.text_input("工期 (日曆天)", key="duration_days", placeholder="例：1200")
+        
         st.text_input("工程造價 (億元)", key="contract_cost", placeholder="例：15.5")
 
     st.subheader("2. 建築規模")
@@ -78,18 +83,20 @@ with tab1:
         opts_struct_down = ["請選擇...", "RC (鋼筋混凝土)", "SRC (鋼骨鋼筋混凝土)"]
         st.selectbox("地下結構", opts_struct_down, index=get_index(opts_struct_down, "struct_below"), key="struct_below")
     with col_b4:
-        opts_found = ["請選擇...", "筏式基礎", "筏式基礎+基樁", "獨立基腳"]
-        st.selectbox("基礎型式", opts_found, index=get_index(opts_found, "foundation_type"), key="foundation_type")
+        # 新增鋼構轉換層欄位
+        st.text_input("鋼構轉換層", key="transfer_slab", placeholder="例：無 / 4F轉換桁架")
 
     col_d1, col_d2, col_d3 = st.columns(3)
     with col_d1:
-        st.number_input("地上層數 (F)", min_value=0, key="floors_up", help="輸入 0 表示未定")
-        st.number_input("地下層數 (B)", min_value=0, key="floors_down")
+        opts_found = ["請選擇...", "筏式基礎", "筏式基礎+基樁", "獨立基腳"]
+        st.selectbox("基礎型式", opts_found, index=get_index(opts_found, "foundation_type"), key="foundation_type")
+        st.number_input("建築高度 (m)", key="building_height")
     with col_d2:
+        st.number_input("地上層數 (F)", min_value=0, key="floors_up", help="輸入 0 表示未定")
         st.number_input("基地面積 (m²)", key="site_area")
         st.number_input("總樓地板面積 (m²)", key="total_floor_area")
     with col_d3:
-        st.number_input("建築高度 (m)", key="building_height")
+        st.number_input("地下層數 (B)", min_value=0, key="floors_down")
         st.number_input("開挖深度 (m)", key="excavation_depth")
 
     st.subheader("3. 關鍵工法")
@@ -167,14 +174,18 @@ with tab3:
                 ws[f'{c}{r}'].alignment = Alignment(vertical='center', wrap_text=True)
 
         ss = st.session_state
-        # 更新 Excel 欄位配置以放入投標年份
         write_row(2, "工程地點", ss.project_loc, "投標年份", ss.bid_year)
         write_row(3, "業主單位", ss.client_name, "設計單位", ss.architect_name)
-        write_row(4, "完工年份", ss.contract_date, "建物用途", ss.b_type)
+        
+        # 整合完工年份與工期
+        date_str = f"{ss.contract_date}"
+        if ss.duration_days:
+            date_str += f" ({ss.duration_days}日曆天)"
+            
+        write_row(4, "完工年份/工期", date_str, "建物用途", ss.b_type)
         cost_str = f"{ss.contract_cost} 億元" if ss.contract_cost else ""
-        write_row(5, "工程造價", cost_str, "  ", "") # 空白格補位
+        write_row(5, "工程造價", cost_str, "  ", "")
 
-        # 標題往下移一格 (因為上面多了一列)
         start_row = 6
         ws.merge_cells(f'A{start_row}:D{start_row}')
         ws[f'A{start_row}'] = "建築規模與技術規格"
@@ -184,6 +195,10 @@ with tab3:
         ws[f'A{start_row}'].border = full_border
 
         struct_str = f"地上:{ss.struct_above} / 地下:{ss.struct_below}"
+        # 加入鋼構轉換層資訊
+        if ss.transfer_slab:
+            struct_str += f"\n(轉換層: {ss.transfer_slab})"
+            
         floor_str = f"{ss.floors_up}F / {ss.floors_down}B (高 {ss.building_height}m)"
         area_str = f"基地:{ss.site_area:,.0f} / 總樓:{ss.total_floor_area:,.0f} m²"
         excav_str = f"{ss.const_method} / GL-{ss.excavation_depth}m"
