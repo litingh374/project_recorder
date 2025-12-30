@@ -7,14 +7,19 @@ from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 from openpyxl.drawing.image import Image as XLImage
 
-# 新增讀檔套件 (如果尚未安裝，請依之前的教學安裝)
-import pdfplumber
-from pptx import Presentation
+# --- 安全匯入區 (Safe Import) ---
+# 這裡使用了 try-except 技巧，如果電腦沒裝套件，不會報錯當機，而是標記功能不可用
+try:
+    import pdfplumber
+    from pptx import Presentation
+    SMART_IMPORT_AVAILABLE = True
+except ImportError:
+    SMART_IMPORT_AVAILABLE = False
 
 # --- 1. 頁面配置 ---
-st.set_page_config(page_title="營造履歷智慧填表系統 v8.0", layout="wide", page_icon="🏗️")
+st.set_page_config(page_title="營造履歷智慧填表系統 v8.1 (安全版)", layout="wide", page_icon="🏗️")
 
-# --- 2. CSS 樣式 (維持風格) ---
+# --- 2. CSS 樣式 ---
 st.markdown("""
     <style>
     :root { --main-yellow: #FFB81C; --accent-orange: #FF4438; --dark-grey: #2D2926; }
@@ -29,7 +34,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 3. 智慧提取函式 ---
+# --- 3. 智慧提取函式 (只有在功能可用時才定義) ---
 def extract_text_from_pdf(file):
     text = ""
     with pdfplumber.open(file) as pdf:
@@ -81,28 +86,13 @@ def parse_construction_data(text):
 
     return data
 
-# --- 4. 初始化 Session State (設定為空白預設值) ---
-# 這裡全部設為空字串或 0，讓介面乾淨
+# --- 4. 初始化 Session State ---
 default_values = {
-    "project_name": "",
-    "project_loc": "",
-    "client_name": "",
-    "architect_name": "",
-    "contract_date": "",
-    "contract_cost": "",
-    "floors_up": 0,
-    "floors_down": 0,
-    "site_area": 0.0,
-    "total_floor_area": 0.0,
-    "building_height": 0.0,
-    "excavation_depth": 0.0,
-    "const_method": "請選擇...",
-    "struct_above": "請選擇...",
-    "struct_below": "請選擇...",
-    "foundation_type": "請選擇...",
-    "b_type": "請選擇...",
-    "retain_sys": "請選擇...",
-    "wall_sys": "請選擇..."
+    "project_name": "", "project_loc": "", "client_name": "", "architect_name": "",
+    "contract_date": "", "contract_cost": "", "floors_up": 0, "floors_down": 0,
+    "site_area": 0.0, "total_floor_area": 0.0, "building_height": 0.0, "excavation_depth": 0.0,
+    "const_method": "請選擇...", "struct_above": "請選擇...", "struct_below": "請選擇...",
+    "foundation_type": "請選擇...", "b_type": "請選擇...", "retain_sys": "請選擇...", "wall_sys": "請選擇..."
 }
 
 for key, val in default_values.items():
@@ -111,42 +101,54 @@ for key, val in default_values.items():
 
 # --- 5. 介面設計 ---
 
-st.title("🏗️ 營造履歷智慧填表系統 v8.0")
+st.title("🏗️ 營造履歷智慧填表系統 v8.1")
 
-# === 檔案上傳區 ===
-with st.expander("📂 智慧匯入 (拖曳 PDF/PPT 檔案到此)", expanded=True):
-    col_up1, col_up2 = st.columns([2, 1])
-    with col_up1:
-        uploaded_doc = st.file_uploader("若有標案簡報，可直接拖曳至此自動填寫", type=["pdf", "pptx"])
-    with col_up2:
-        st.write("") # Spacer
-        st.write("")
-        if uploaded_doc is not None:
-            if st.button("🚀 開始分析檔案", type="primary"):
-                with st.spinner("正在讀取檔案..."):
-                    try:
-                        raw_text = ""
-                        if uploaded_doc.name.endswith(".pdf"):
-                            raw_text = extract_text_from_pdf(uploaded_doc)
-                        elif uploaded_doc.name.endswith(".pptx"):
-                            raw_text = extract_text_from_ppt(uploaded_doc)
-                        
-                        extracted_data = parse_construction_data(raw_text)
-                        
-                        if extracted_data:
-                            for k, v in extracted_data.items():
-                                st.session_state[k] = v
-                            st.success(f"✅ 自動填入 {len(extracted_data)} 欄位！")
-                            st.rerun() # 重新整理頁面以顯示資料
-                        else:
-                            st.warning("⚠️ 未偵測到關鍵字，請手動輸入")
-                    except Exception as e:
-                        st.error(f"解析失敗：{e}")
+# === 智慧匯入區塊 (依據環境決定顯示內容) ===
+with st.expander("📂 智慧匯入 (PDF/PPT)", expanded=True):
+    if SMART_IMPORT_AVAILABLE:
+        # 如果套件安裝成功，顯示正常功能
+        col_up1, col_up2 = st.columns([2, 1])
+        with col_up1:
+            uploaded_doc = st.file_uploader("若有標案簡報，可直接拖曳至此自動填寫", type=["pdf", "pptx"])
+        with col_up2:
+            st.write("") 
+            st.write("")
+            if uploaded_doc is not None:
+                if st.button("🚀 開始分析檔案", type="primary"):
+                    with st.spinner("正在讀取檔案..."):
+                        try:
+                            raw_text = ""
+                            if uploaded_doc.name.endswith(".pdf"):
+                                raw_text = extract_text_from_pdf(uploaded_doc)
+                            elif uploaded_doc.name.endswith(".pptx"):
+                                raw_text = extract_text_from_ppt(uploaded_doc)
+                            
+                            extracted_data = parse_construction_data(raw_text)
+                            
+                            if extracted_data:
+                                for k, v in extracted_data.items():
+                                    st.session_state[k] = v
+                                st.success(f"✅ 自動填入 {len(extracted_data)} 欄位！")
+                                st.rerun()
+                            else:
+                                st.warning("⚠️ 未偵測到關鍵字，請手動輸入")
+                        except Exception as e:
+                            st.error(f"解析失敗：{e}")
+    else:
+        # 如果套件缺失，顯示警告但允許繼續使用手動填寫
+        st.warning("⚠️ 您的電腦缺少 `pdfplumber` 或 `python-pptx` 套件，且受公司權限限制無法安裝。")
+        st.info("ℹ️ 「智慧匯入」功能暫時關閉，但您**仍然可以手動填寫下方表單並輸出 Excel**。")
 
 st.markdown("---")
 
-# === 填表區 (加入 placeholder 提示) ===
+# === 填表區 (以下保持不變) ===
 tab1, tab2, tab3 = st.tabs(["📝 基本資料與規格", "🖼️ 圖片與敘述", "📊 導出 Excel"])
+
+# 輔助函式
+def get_index(options, key):
+    current_val = st.session_state[key]
+    if current_val in options: return options.index(current_val)
+    return 0
 
 with tab1:
     st.subheader("1. 專案基本資料")
@@ -162,14 +164,6 @@ with tab1:
         st.text_input("工程造價 (億元)", key="contract_cost", placeholder="例：15.5")
 
     st.subheader("2. 建築規模")
-    
-    # 輔助函式：處理下拉選單，讓預設值正確顯示
-    def get_index(options, key):
-        current_val = st.session_state[key]
-        if current_val in options:
-            return options.index(current_val)
-        return 0
-
     col_b1, col_b2, col_b3, col_b4 = st.columns(4)
     with col_b1:
         opts_type = ["請選擇...", "住宅大樓", "商辦大樓", "飯店", "廠房", "公共工程"]
@@ -226,11 +220,8 @@ with tab3:
         wb = Workbook()
         ws = wb.active
         ws.title = "專案履歷表"
-        
-        # 簡易檢查：如果沒填資料，提醒使用者
         p_name = st.session_state.project_name if st.session_state.project_name else "未命名專案"
         
-        # 樣式與欄寬設定
         border_style = Side(border_style="thin", color="000000")
         full_border = Border(left=border_style, right=border_style, top=border_style, bottom=border_style)
         fill_header = PatternFill(start_color="2D2926", end_color="2D2926", fill_type="solid")
@@ -246,7 +237,6 @@ with tab3:
         ws.column_dimensions['C'].width = 15
         ws.column_dimensions['D'].width = 25
 
-        # 標題
         ws.merge_cells('A1:D1')
         ws['A1'] = p_name
         ws['A1'].fill = fill_header
@@ -267,20 +257,13 @@ with tab3:
                 ws[f'{c}{r}'].border = full_border
                 ws[f'{c}{r}'].alignment = Alignment(vertical='center', wrap_text=True)
 
-        # 寫入資料 (從 session_state 讀取)
         ss = st.session_state
         write_row(2, "工程地點", ss.project_loc, "完工年份", ss.contract_date)
         write_row(3, "業主單位", ss.client_name, "設計單位", ss.architect_name)
         cost_str = f"{ss.contract_cost} 億元" if ss.contract_cost else ""
         write_row(4, "工程造價", cost_str, "建物用途", ss.b_type)
 
-        # 分隔
-        ws.merge_cells('A5:D5')
-        ws['A5'] = "建築規模與技術規格"
-        ws['A5'].fill = fill_sub_header
-        ws['A5'].font = font_sub
-        ws['A5'].alignment = Alignment(horizontal='center')
-        ws['A5'].border = full_border
+        ws.merge_cells('A5:D5'); ws['A5'] = "建築規模與技術規格"; ws['A5'].fill = fill_sub_header; ws['A5'].font = font_sub; ws['A5'].alignment = Alignment(horizontal='center'); ws['A5'].border = full_border
 
         struct_str = f"地上:{ss.struct_above} / 地下:{ss.struct_below}"
         floor_str = f"{ss.floors_up}F / {ss.floors_down}B (高 {ss.building_height}m)"
@@ -292,13 +275,10 @@ with tab3:
         write_row(8, "施工工法", excav_str, "擋土系統", ss.retain_sys)
         write_row(9, "外牆系統", ss.wall_sys, "其他", "")
 
-        # 特色與圖片 (略為簡化，與上版相同邏輯)
         ws.merge_cells('A10:D10'); ws['A10'] = "工程特色"; ws['A10'].fill = fill_sub_header; ws['A10'].font = font_sub; ws['A10'].border = full_border
         ws.merge_cells('A11:D11'); ws['A11'] = features if features else "(無)"; ws['A11'].alignment = Alignment(wrap_text=True, vertical='top'); ws['A11'].border = full_border; ws.row_dimensions[11].height = 60
-        
         ws.merge_cells('A12:D12'); ws['A12'] = "施工挑戰"; ws['A12'].fill = fill_sub_header; ws['A12'].font = font_sub; ws['A12'].border = full_border
         ws.merge_cells('A13:D13'); ws['A13'] = challenges if challenges else "(無)"; ws['A13'].alignment = Alignment(wrap_text=True, vertical='top'); ws['A13'].border = full_border; ws.row_dimensions[13].height = 60
-        
         ws.merge_cells('A14:D14'); ws['A14'] = "專案照片"; ws['A14'].fill = fill_sub_header; ws['A14'].font = font_sub; ws['A14'].alignment = Alignment(horizontal='center'); ws['A14'].border = full_border
 
         if uploaded_img:
