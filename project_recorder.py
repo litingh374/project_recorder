@@ -1,23 +1,12 @@
 import streamlit as st
-import pandas as pd
 import io
-import re
 from PIL import Image
 from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 from openpyxl.drawing.image import Image as XLImage
 
-# --- 安全匯入區 (Safe Import) ---
-# 這裡使用了 try-except 技巧，如果電腦沒裝套件，不會報錯當機，而是標記功能不可用
-try:
-    import pdfplumber
-    from pptx import Presentation
-    SMART_IMPORT_AVAILABLE = True
-except ImportError:
-    SMART_IMPORT_AVAILABLE = False
-
 # --- 1. 頁面配置 ---
-st.set_page_config(page_title="營造履歷智慧填表系統 v8.1 (安全版)", layout="wide", page_icon="🏗️")
+st.set_page_config(page_title="營造標案履歷系統 v9.0", layout="wide", page_icon="🏗️")
 
 # --- 2. CSS 樣式 ---
 st.markdown("""
@@ -34,121 +23,33 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 3. 智慧提取函式 (只有在功能可用時才定義) ---
-def extract_text_from_pdf(file):
-    text = ""
-    with pdfplumber.open(file) as pdf:
-        for page in pdf.pages:
-            text += page.extract_text() + "\n"
-    return text
-
-def extract_text_from_ppt(file):
-    prs = Presentation(file)
-    text = ""
-    for slide in prs.slides:
-        for shape in slide.shapes:
-            if hasattr(shape, "text"):
-                text += shape.text + "\n"
-    return text
-
-def parse_construction_data(text):
-    data = {}
-    name_match = re.search(r"(\S*新建工程|\S*大樓工程)", text)
-    if name_match: data["project_name"] = name_match.group(1)
-
-    area_match = re.search(r"基地面積\D*([\d,]+\.?\d*)", text)
-    if area_match:
-        try: data["site_area"] = float(area_match.group(1).replace(",", ""))
-        except: pass
-
-    fa_match = re.search(r"(總樓地板|總樓地|總建坪)\D*([\d,]+\.?\d*)", text)
-    if fa_match:
-        try: data["total_floor_area"] = float(fa_match.group(2).replace(",", ""))
-        except: pass
-
-    up_match = re.search(r"地上\D*(\d+)", text)
-    down_match = re.search(r"地下\D*(\d+)", text)
-    if up_match: data["floors_up"] = int(up_match.group(1))
-    if down_match: data["floors_down"] = int(down_match.group(1))
-
-    depth_match = re.search(r"(開挖深度|GL-)\D*([\d,]+\.?\d*)", text)
-    if depth_match:
-        try: data["excavation_depth"] = float(depth_match.group(2).replace(",", ""))
-        except: pass
-
-    if "逆打" in text: data["const_method"] = "逆打工法 (Top-Down)"
-    elif "雙順打" in text: data["const_method"] = "雙順打工法"
-    elif "順打" in text: data["const_method"] = "順打工法 (Bottom-Up)"
-
-    if "SRC" in text: data["struct_above"] = "SRC (鋼骨鋼筋混凝土)"
-    elif "SC" in text: data["struct_above"] = "SC (鋼骨)"
-    elif "RC" in text: data["struct_above"] = "RC (鋼筋混凝土)"
-
-    return data
-
-# --- 4. 初始化 Session State ---
+# --- 3. 初始化 Session State (設定為空白預設值) ---
 default_values = {
     "project_name": "", "project_loc": "", "client_name": "", "architect_name": "",
     "contract_date": "", "contract_cost": "", "floors_up": 0, "floors_down": 0,
     "site_area": 0.0, "total_floor_area": 0.0, "building_height": 0.0, "excavation_depth": 0.0,
     "const_method": "請選擇...", "struct_above": "請選擇...", "struct_below": "請選擇...",
-    "foundation_type": "請選擇...", "b_type": "請選擇...", "retain_sys": "請選擇...", "wall_sys": "請選擇..."
+    "foundation_type": "請選擇...", "b_type": "請選擇...", "retain_sys": "請選擇...", 
+    "wall_sys": "請選擇...", "gw_method": "請選擇..."  # 新增導溝欄位
 }
 
 for key, val in default_values.items():
     if key not in st.session_state:
         st.session_state[key] = val
 
-# --- 5. 介面設計 ---
-
-st.title("🏗️ 營造履歷智慧填表系統 v8.1")
-
-# === 智慧匯入區塊 (依據環境決定顯示內容) ===
-with st.expander("📂 智慧匯入 (PDF/PPT)", expanded=True):
-    if SMART_IMPORT_AVAILABLE:
-        # 如果套件安裝成功，顯示正常功能
-        col_up1, col_up2 = st.columns([2, 1])
-        with col_up1:
-            uploaded_doc = st.file_uploader("若有標案簡報，可直接拖曳至此自動填寫", type=["pdf", "pptx"])
-        with col_up2:
-            st.write("") 
-            st.write("")
-            if uploaded_doc is not None:
-                if st.button("🚀 開始分析檔案", type="primary"):
-                    with st.spinner("正在讀取檔案..."):
-                        try:
-                            raw_text = ""
-                            if uploaded_doc.name.endswith(".pdf"):
-                                raw_text = extract_text_from_pdf(uploaded_doc)
-                            elif uploaded_doc.name.endswith(".pptx"):
-                                raw_text = extract_text_from_ppt(uploaded_doc)
-                            
-                            extracted_data = parse_construction_data(raw_text)
-                            
-                            if extracted_data:
-                                for k, v in extracted_data.items():
-                                    st.session_state[k] = v
-                                st.success(f"✅ 自動填入 {len(extracted_data)} 欄位！")
-                                st.rerun()
-                            else:
-                                st.warning("⚠️ 未偵測到關鍵字，請手動輸入")
-                        except Exception as e:
-                            st.error(f"解析失敗：{e}")
-    else:
-        # 如果套件缺失，顯示警告但允許繼續使用手動填寫
-        st.warning("⚠️ 您的電腦缺少 `pdfplumber` 或 `python-pptx` 套件，且受公司權限限制無法安裝。")
-        st.info("ℹ️ 「智慧匯入」功能暫時關閉，但您**仍然可以手動填寫下方表單並輸出 Excel**。")
-
-st.markdown("---")
-
-# === 填表區 (以下保持不變) ===
-tab1, tab2, tab3 = st.tabs(["📝 基本資料與規格", "🖼️ 圖片與敘述", "📊 導出 Excel"])
-
-# 輔助函式
+# 輔助函式：處理下拉選單索引
 def get_index(options, key):
     current_val = st.session_state[key]
     if current_val in options: return options.index(current_val)
     return 0
+
+# --- 4. 介面設計 ---
+
+st.title("🏗️ 營造標案履歷系統 v9.0")
+st.caption("穩定版：移除智慧匯入功能，新增導溝與明挖選項")
+st.markdown("---")
+
+tab1, tab2, tab3 = st.tabs(["📝 基本資料與規格", "🖼️ 圖片與敘述", "📊 導出 Excel"])
 
 with tab1:
     st.subheader("1. 專案基本資料")
@@ -166,7 +67,8 @@ with tab1:
     st.subheader("2. 建築規模")
     col_b1, col_b2, col_b3, col_b4 = st.columns(4)
     with col_b1:
-        opts_type = ["請選擇...", "住宅大樓", "商辦大樓", "飯店", "廠房", "公共工程"]
+        # 更新：新增百貨、賣場
+        opts_type = ["請選擇...", "住宅大樓", "商辦大樓", "飯店", "百貨", "賣場", "廠房", "公共工程"]
         st.selectbox("建物類型", opts_type, index=get_index(opts_type, "b_type"), key="b_type")
     with col_b2:
         opts_struct = ["請選擇...", "SC (鋼骨)", "SRC (鋼骨鋼筋混凝土)", "RC (鋼筋混凝土)", "SS (純鋼構)"]
@@ -195,11 +97,23 @@ with tab1:
         opts_method = ["請選擇...", "逆打工法 (Top-Down)", "順打工法 (Bottom-Up)", "雙順打工法"]
         st.selectbox("主體施工工法", opts_method, index=get_index(opts_method, "const_method"), key="const_method")
     with c_m2:
-        opts_retain = ["請選擇...", "連續壁+鋼支柱(逆打)", "連續壁+內支撐", "地錨工法", "鋼板樁"]
+        # 更新：新增明挖工法
+        opts_retain = ["請選擇...", "連續壁+鋼支柱(逆打)", "連續壁+內支撐", "地錨工法", "鋼板樁", "明挖工法"]
         st.selectbox("擋土支撐系統", opts_retain, index=get_index(opts_retain, "retain_sys"), key="retain_sys")
     with c_m3:
         opts_wall = ["請選擇...", "玻璃帷幕", "石材吊掛", "鋁板", "二丁掛"]
         st.selectbox("外牆工法", opts_wall, index=get_index(opts_wall, "wall_sys"), key="wall_sys")
+
+    # 新增欄位區：導溝施作
+    c_gw1, c_gw2, c_gw3 = st.columns(3)
+    with c_gw1:
+        # 更新：新增導溝施作方式
+        opts_gw = ["請選擇...", "一般導溝", "全套管", "深導溝"]
+        st.selectbox("導溝施作方式", opts_gw, index=get_index(opts_gw, "gw_method"), key="gw_method", help="擋土壁前置作業方式")
+    with c_gw2:
+        st.write("") # 佔位用
+    with c_gw3:
+        st.write("") # 佔位用
 
 with tab2:
     st.header("工程特色與圖片")
@@ -222,6 +136,7 @@ with tab3:
         ws.title = "專案履歷表"
         p_name = st.session_state.project_name if st.session_state.project_name else "未命名專案"
         
+        # 樣式設定
         border_style = Side(border_style="thin", color="000000")
         full_border = Border(left=border_style, right=border_style, top=border_style, bottom=border_style)
         fill_header = PatternFill(start_color="2D2926", end_color="2D2926", fill_type="solid")
@@ -272,7 +187,12 @@ with tab3:
 
         write_row(6, "樓層/高度", floor_str, "結構系統", struct_str)
         write_row(7, "面積資訊", area_str, "基礎型式", ss.foundation_type)
-        write_row(8, "施工工法", excav_str, "擋土系統", ss.retain_sys)
+        # 更新：將導溝資訊加入 Excel (放在擋土系統旁)
+        retain_str = f"{ss.retain_sys}"
+        if ss.gw_method != "請選擇...":
+            retain_str += f" ({ss.gw_method})"
+            
+        write_row(8, "施工工法", excav_str, "擋土/導溝", retain_str)
         write_row(9, "外牆系統", ss.wall_sys, "其他", "")
 
         ws.merge_cells('A10:D10'); ws['A10'] = "工程特色"; ws['A10'].fill = fill_sub_header; ws['A10'].font = font_sub; ws['A10'].border = full_border
